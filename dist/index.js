@@ -2,7 +2,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const proc = require('process');
 const { authenticate } = require('@google-cloud/local-auth');
-const { google } = require('googleapis');
+const { google, gmail_v1 } = require('googleapis');
 // If modifying these scopes, delete token.json.
 const SCOPES = ['https://www.googleapis.com/auth/gmail.readonly'];
 // The file token.json stores the user's access and refresh tokens, and is
@@ -66,22 +66,29 @@ async function authorize() {
  *
  * @param {google.auth.OAuth2} auth An authorized OAuth2 client.
  */
-async function getMessages(auth) {
+async function getStarredMessages(auth) {
     const gmail = google.gmail({ version: 'v1', auth });
     const messagesList = await gmail.users.messages.list({
         userId: 'me',
         labelIds: ['STARRED'],
         maxResults: 5,
     });
-    const messageIds = messagesList.data.messages.map((value) => value.id);
-    messageIds.forEach(async (i) => {
-        const readMessage = await gmail.users.messages.get({
-            userId: 'me',
-            id: i,
-        });
-        const obj = readMessage.data.payload.headers.find((a) => a.name === 'Subject').value;
-        console.log(obj);
+    return messagesList;
+}
+async function getMessageIds(messages) {
+    return messages.data.messages.map((value) => value.id);
+}
+async function readMessageById(messageId) {
+    return google.gmail.users.messages.get({
+        userId: 'me',
+        id: messageId,
     });
 }
-authorize().then(getMessages).catch(console.error);
+async function getMessageSubjectById(message) {
+    return message.data.payload.headers.find((a) => a.name === 'Subject').value;
+}
+authorize().then((res) => getStarredMessages(res)
+    .then((messages) => messages.map(readMessageById))
+    .then((message) => message.map(getMessageSubjectById))
+    .catch((error) => console.log(error)));
 //# sourceMappingURL=index.js.map
